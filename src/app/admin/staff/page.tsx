@@ -1,20 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  UserCheck,
-  UserPlus,
-  Mail,
-  Lock,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  ShieldCheck,
-} from 'lucide-react';
+import { UserPlus, Loader2 } from 'lucide-react';
 import { api, asArray } from '@/lib/api';
-import { RequireRole } from '@/lib/auth';
+import { RequireRole, normalizeUser } from '@/lib/auth';
 import { Empty, ErrorState, Loading } from '@/components/States';
 import { StatusBadge } from '@/components/StatusBadge';
+import { toast } from '@/components/ToastProvider';
 import type { User } from '@/lib/types';
 
 export default function AdminStaffPage() {
@@ -30,7 +22,6 @@ function StaffInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [form, setForm] = useState({ fullName: '', email: '', password: '' });
-  const [msg, setMsg] = useState('');
   const [adding, setAdding] = useState(false);
 
   async function muat() {
@@ -38,13 +29,10 @@ function StaffInner() {
     setError('');
     try {
       const res = await api<unknown>('/api/users');
-      const semua = asArray<User>(res);
       setStaff(
-        semua.filter(
-          (u) =>
-            u.role === 'staff' ||
-            (u.role as string) === 'PETUGAS',
-        ),
+        asArray<unknown>(res)
+          .map(normalizeUser)
+          .filter((u): u is User => u !== null && u.role === 'staff'),
       );
     } catch (e) {
       setError(
@@ -61,49 +49,33 @@ function StaffInner() {
 
   async function handleAddStaff(e: React.FormEvent) {
     e.preventDefault();
-    setMsg('');
+    const fullName = form.fullName.trim();
+    const email = form.email.trim().toLowerCase();
+
+    if (fullName.length < 3) return toast.error('Nama petugas minimal 3 karakter.');
+    if (!/^\S+@\S+\.\S+$/.test(email)) return toast.error('Masukkan alamat email yang valid.');
+    if (form.password.length < 8 || !/[A-Za-z]/.test(form.password) || !/[0-9]/.test(form.password)) {
+      return toast.error('Kata sandi minimal 8 karakter dan harus berisi huruf serta angka.');
+    }
+
     setAdding(true);
     try {
-      try {
-        await api('/api/users', {
-          method: 'POST',
-          body: JSON.stringify({
-            name: form.fullName.trim(),
-            fullName: form.fullName.trim(),
-            email: form.email.trim().toLowerCase(),
-            password: form.password,
-            role: 'PETUGAS',
-          }),
-        });
-      } catch {
-        // Fallback: register then promote role
-        const reg = await api<{ id?: string; user?: { id?: string } }>(
-          '/api/auth/register',
-          {
-            method: 'POST',
-            auth: false,
-            body: JSON.stringify({
-              name: form.fullName.trim(),
-              email: form.email.trim().toLowerCase(),
-              password: form.password,
-            }),
-          },
-        );
-        const newId = reg?.id || reg?.user?.id;
-        if (newId) {
-          await api(`/api/users/${newId}/role`, {
-            method: 'PATCH',
-            body: JSON.stringify({ role: 'PETUGAS' }),
-          }).catch(() => null);
-        }
-      }
+      // Satu endpoint admin saja. Tidak ada fallback ke registrasi publik,
+      // karena fallback itu bisa membuat akun siswa biasa lalu tetap melapor sukses.
+      await api('/api/users', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: fullName,
+          email,
+          password: form.password,
+          role: 'PETUGAS',
+        }),
+      });
       setForm({ fullName: '', email: '', password: '' });
-      setMsg('Akun staf petugas berhasil didaftarkan.');
+      toast.success('Akun petugas berhasil dibuat.');
       await muat();
     } catch (err) {
-      setMsg(
-        err instanceof Error ? err.message : 'Gagal membuat akun petugas.',
-      );
+      toast.error(err instanceof Error ? err.message : 'Gagal membuat akun petugas.');
     } finally {
       setAdding(false);
     }
@@ -121,15 +93,6 @@ function StaffInner() {
         </p>
       </div>
 
-      {msg && (
-        <div
-          role="alert"
-          className="flex items-start gap-2.5 rounded-xl border border-blue-200 bg-blue-50/90 p-3.5 text-xs text-blue-900"
-        >
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
-          <div className="leading-relaxed">{msg}</div>
-        </div>
-      )}
 
       {/* Add Staff Card */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs space-y-4">

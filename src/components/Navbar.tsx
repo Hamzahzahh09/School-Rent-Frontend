@@ -22,6 +22,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -44,7 +45,7 @@ export function Navbar() {
     ];
   } else if (role === 'student') {
     navItems = [
-      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/dashboard', label: 'Dasbor', icon: LayoutDashboard },
       { href: '/items', label: 'Katalog Barang', icon: Box },
       { href: '/loans', label: 'Peminjaman', icon: ClipboardList },
       { href: '/history', label: 'Riwayat', icon: Clock },
@@ -52,8 +53,10 @@ export function Navbar() {
     ];
   } else if (role === 'staff') {
     navItems = [
-      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/dashboard', label: 'Dasbor', icon: LayoutDashboard },
       { href: '/items', label: 'Katalog', icon: Box },
+      { href: '/admin/items', label: 'Inventaris', icon: Box },
+      { href: '/admin/categories', label: 'Kategori', icon: Box },
       { href: '/admin/loans', label: 'Pengajuan', icon: ClipboardList },
       { href: '/admin/returns', label: 'Pengembalian', icon: RotateCcw },
       { href: '/admin/fines', label: 'Denda', icon: AlertTriangle },
@@ -61,12 +64,15 @@ export function Navbar() {
     ];
   } else if (role === 'admin') {
     navItems = [
-      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/dashboard', label: 'Dasbor', icon: LayoutDashboard },
       { href: '/items', label: 'Katalog', icon: Box },
       { href: '/admin/loans', label: 'Pengajuan', icon: ClipboardList },
       { href: '/admin/returns', label: 'Pengembalian', icon: RotateCcw },
       { href: '/admin/items', label: 'Kelola Barang', icon: Box },
+      { href: '/admin/categories', label: 'Kategori', icon: Box },
       { href: '/admin/users', label: 'Pengguna', icon: Users },
+      { href: '/admin/staff', label: 'Petugas', icon: Users },
+      { href: '/admin/fines', label: 'Denda', icon: AlertTriangle },
       { href: '/admin/reports', label: 'Laporan', icon: BarChart3 },
     ];
   }
@@ -94,7 +100,7 @@ export function Navbar() {
                 School<span className="text-blue-600">Rent</span>
               </span>
               <span className="text-[10px] font-medium text-slate-400">
-                Rental &amp; Inventory
+                Peminjaman &amp; Inventaris
               </span>
             </div>
           </Link>
@@ -123,6 +129,7 @@ export function Navbar() {
 
         {/* Right Section: User Status or Auth CTAs */}
         <div className="hidden sm:flex items-center gap-3">
+          <ThemeToggle />
           {user ? (
             <div className="flex items-center gap-2">
               <Link
@@ -136,8 +143,11 @@ export function Navbar() {
               {/* Profile dropdown trigger */}
               <div className="relative">
                 <button
+                  type="button"
                   onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
                   onBlur={() => setTimeout(() => setProfileDropdownOpen(false), 200)}
+                  aria-haspopup="menu"
+                  aria-expanded={profileDropdownOpen}
                   className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
                 >
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-semibold text-[11px]">
@@ -185,7 +195,7 @@ export function Navbar() {
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 transition"
                     >
                       <LogOut className="h-3.5 w-3.5 text-rose-500" />
-                      Keluar (Logout)
+                      Keluar
                     </button>
                   </div>
                 )}
@@ -209,20 +219,27 @@ export function Navbar() {
           )}
         </div>
 
-        {/* Mobile Hamburger Button */}
-        <div className="flex sm:hidden items-center gap-2">
+        {/* Tombol menu tampil di bawah lg agar tablet tetap punya navigasi. */}
+        <div className="flex lg:hidden items-center gap-2">
+          <div className="sm:hidden">
+            <ThemeToggle />
+          </div>
           {user && (
             <Link
               href="/notifications"
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 sm:hidden"
+              aria-label="Notifikasi"
             >
               <Bell className="h-4 w-4" />
             </Link>
           )}
           <button
+            type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100"
-            aria-label="Toggle Menu"
+            aria-label={mobileMenuOpen ? 'Tutup menu' : 'Buka menu'}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="menu-seluler"
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -231,7 +248,7 @@ export function Navbar() {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="border-t border-slate-200 bg-white px-4 pt-3 pb-6 sm:hidden space-y-3">
+        <div id="menu-seluler" className="border-t border-slate-200 bg-white px-4 pt-3 pb-6 lg:hidden space-y-3">
           {user && (
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>

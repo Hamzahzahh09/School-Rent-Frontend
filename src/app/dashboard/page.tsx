@@ -17,9 +17,9 @@ import {
   ShieldAlert,
   Inbox,
 } from 'lucide-react';
-import { api, asArray, formatTanggal, formatRupiah } from '@/lib/api';
+import { api, asArray, formatTanggal } from '@/lib/api';
 import { RequireRole, useAuth } from '@/lib/auth';
-import { Empty, ErrorState, Loading } from '@/components/States';
+import { ErrorState, Loading } from '@/components/States';
 import { StatusBadge } from '@/components/StatusBadge';
 import type { Loan } from '@/lib/types';
 

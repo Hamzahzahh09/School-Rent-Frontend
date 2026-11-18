@@ -3,23 +3,18 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
-  ClipboardList,
   Search,
   CheckCircle2,
   XCircle,
-  Package,
   Calendar,
   Clock,
-  ArrowRight,
-  AlertCircle,
-  Loader2,
-  ChevronRight,
   HandHelping,
 } from 'lucide-react';
 import { api, asArray, formatTanggal } from '@/lib/api';
 import { RequireRole } from '@/lib/auth';
 import { Empty, ErrorState, Loading } from '@/components/States';
 import { StatusBadge } from '@/components/StatusBadge';
+import { toast } from '@/components/ToastProvider';
 import type { Loan } from '@/lib/types';
 
 export default function AdminLoansPage() {
@@ -36,7 +31,6 @@ function Inner() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
 
   // Rejection modal state
   const [rejectModalLoanId, setRejectModalLoanId] = useState<string | null>(null);
@@ -69,7 +63,6 @@ function Inner() {
     actionPath: 'approve' | 'reject' | 'handover' | 'borrow',
     body?: Record<string, unknown>,
   ) {
-    setMsg('');
     setActionLoading(true);
 
     const actualPath = actionPath === 'borrow' ? 'handover' : actionPath;
@@ -89,18 +82,19 @@ function Inner() {
         method: 'PATCH',
         body: payload ? JSON.stringify(payload) : undefined,
       });
-      setMsg(
+      const message =
         actualPath === 'approve'
-          ? 'Permohonan berhasil disetujui (APPROVED).'
+          ? 'Permohonan berhasil disetujui.'
           : actualPath === 'handover'
-          ? 'Status diperbarui: Barang telah diserahkan (BORROWED).'
-          : 'Permohonan berhasil ditolak (REJECTED).',
-      );
+            ? 'Barang berhasil diserahkan kepada siswa.'
+            : 'Permohonan berhasil ditolak.';
+      toast.success(message);
       setRejectModalLoanId(null);
       setRejectReason('');
       await muat();
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : 'Aksi verifikasi gagal.');
+      const message = e instanceof Error ? e.message : 'Aksi verifikasi gagal.';
+      toast.error(message);
     } finally {
       setActionLoading(false);
     }
@@ -140,15 +134,6 @@ function Inner() {
         </div>
       </div>
 
-      {msg && (
-        <div
-          role="alert"
-          className="flex items-start gap-2.5 rounded-xl border border-blue-200 bg-blue-50/90 p-3.5 text-xs text-blue-900"
-        >
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
-          <div className="leading-relaxed">{msg}</div>
-        </div>
-      )}
 
       {/* Filter and Search Bar */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 type StatusType =
   | 'AVAILABLE'
@@ -49,7 +49,7 @@ const statusMap: Record<string, StatusConfig> = {
   MAINTENANCE: {
     label: 'Perawatan',
     bg: 'bg-amber-50',
-    text: 'text-amber-700',
+    text: 'text-amber-800',
     border: 'border-amber-200',
     dot: 'bg-amber-500',
   },
@@ -65,7 +65,7 @@ const statusMap: Record<string, StatusConfig> = {
   PENDING: {
     label: 'Menunggu',
     bg: 'bg-amber-50',
-    text: 'text-amber-700',
+    text: 'text-amber-800',
     border: 'border-amber-200',
     dot: 'bg-amber-500',
   },
@@ -99,10 +99,10 @@ const statusMap: Record<string, StatusConfig> = {
   },
   OVERDUE: {
     label: 'Terlambat',
-    bg: 'bg-rose-50',
-    text: 'text-rose-700',
-    border: 'border-rose-200',
-    dot: 'bg-rose-500',
+    bg: 'bg-orange-50',
+    text: 'text-orange-800',
+    border: 'border-orange-300',
+    dot: 'bg-orange-500',
   },
 
   // Fine status
@@ -146,14 +146,14 @@ const statusMap: Record<string, StatusConfig> = {
   FAIR: {
     label: 'Cukup',
     bg: 'bg-amber-50',
-    text: 'text-amber-700',
+    text: 'text-amber-800',
     border: 'border-amber-200',
     dot: 'bg-amber-500',
   },
   RUSAK_RINGAN: {
     label: 'Rusak Ringan',
     bg: 'bg-amber-50',
-    text: 'text-amber-700',
+    text: 'text-amber-800',
     border: 'border-amber-200',
     dot: 'bg-amber-500',
   },

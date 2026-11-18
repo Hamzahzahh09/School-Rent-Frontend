@@ -4,15 +4,14 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { toast } from '@/components/ToastProvider';
 import {
   Package,
   Eye,
   EyeOff,
   Loader2,
   AlertCircle,
-  CheckCircle2,
   ArrowRight,
-  ShieldAlert,
 } from 'lucide-react';
 
 export default function RegisterPage() {
@@ -40,6 +39,18 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
 
+    if (form.fullName.trim().length < 3) {
+      setError('Nama lengkap minimal 3 karakter.');
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) {
+      setError('Masukkan alamat email yang valid.');
+      return;
+    }
+    if (form.phone.trim() && !/^\+?[0-9\s-]{8,16}$/.test(form.phone.trim())) {
+      setError('Nomor telepon hanya boleh berisi 8–16 digit.');
+      return;
+    }
     if (form.password.length < 8) {
       setError('Kata sandi minimal 8 karakter.');
       return;
@@ -63,13 +74,14 @@ export default function RegisterPage() {
         major: form.major.trim() || undefined,
         phone: form.phone.trim() || undefined,
       });
+      toast.success('Pendaftaran berhasil. Silakan masuk dengan akun baru Anda.');
       router.push('/login');
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Pendaftaran gagal. Silakan coba kembali.',
-      );
+      const message = err instanceof Error
+        ? err.message
+        : 'Pendaftaran gagal. Silakan coba kembali.';
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }

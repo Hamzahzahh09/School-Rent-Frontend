@@ -2,11 +2,7 @@
 
 import { useState } from 'react';
 import {
-  User as UserIcon,
   Mail,
-  Shield,
-  Phone,
-  GraduationCap,
   Save,
   CheckCircle2,
   AlertCircle,
@@ -14,7 +10,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { RequireRole, useAuth } from '@/lib/auth';
-import { ErrorState, Loading } from '@/components/States';
+import { Loading } from '@/components/States';
 import { StatusBadge } from '@/components/StatusBadge';
 
 export default function ProfilePage() {

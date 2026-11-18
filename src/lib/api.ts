@@ -17,9 +17,9 @@ import type {
   User,
 } from './types';
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ||
-  'https://school-rent.vercel.app';
+import { API_BASE } from './config';
+
+export { API_BASE };
 
 const TOKEN_KEY = 'schoolrent_token';
 
@@ -94,7 +94,7 @@ export function normalizeLoan(raw: unknown): Loan {
 
   let items: LoanItemRow[] = [];
   if (Array.isArray(o.items) && o.items.length > 0) {
-    items = o.items.map((it: any) => ({
+    items = (o.items as Record<string, unknown>[]).map((it) => ({
       itemId: String(it.item_id ?? it.itemId ?? it.id ?? ''),
       quantity: Number(it.quantity ?? 1),
       item: it.item
@@ -260,19 +260,26 @@ function autoNormalize<T>(item: unknown): T {
 
 interface ApiOptions extends RequestInit {
   auth?: boolean;
+  /** Batas waktu request agar UI tidak berada pada status memuat tanpa akhir. */
+  timeoutMs?: number;
 }
 
 export async function api<T>(
   path: string,
   options: ApiOptions = {},
 ): Promise<T> {
-  const { auth = true, headers, ...rest } = options;
+  const { auth = true, headers, timeoutMs = 15_000, signal, ...rest } = options;
   const token = auth ? getToken() : null;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const abortFromCaller = () => controller.abort();
+  signal?.addEventListener('abort', abortFromCaller, { once: true });
 
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
       ...rest,
+      signal: controller.signal,
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
@@ -281,10 +288,19 @@ export async function api<T>(
       },
     });
   } catch {
+    if (controller.signal.aborted) {
+      throw new ApiError(
+        0,
+        'Server terlalu lama merespons. Periksa koneksi lalu coba lagi.',
+      );
+    }
     throw new ApiError(
       0,
       `Tidak dapat terhubung ke backend di ${API_BASE}. Periksa koneksi internet Anda atau pastikan server aktif.`,
     );
+  } finally {
+    clearTimeout(timeoutId);
+    signal?.removeEventListener('abort', abortFromCaller);
   }
 
   if (res.status === 204) return undefined as T;

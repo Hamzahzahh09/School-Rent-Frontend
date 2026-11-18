@@ -1,22 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import {
   RotateCcw,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  Package,
-  FileText,
-  AlertCircle,
   Loader2,
-  Calendar,
 } from 'lucide-react';
 import { api, asArray, formatTanggal } from '@/lib/api';
 import { RequireRole } from '@/lib/auth';
 import { Empty, ErrorState, Loading } from '@/components/States';
 import { StatusBadge } from '@/components/StatusBadge';
+import { toast } from '@/components/ToastProvider';
 import type { Loan, ItemCondition } from '@/lib/types';
 
 export default function AdminReturnsPage() {
@@ -34,7 +27,6 @@ function Inner() {
   const [loanId, setLoanId] = useState('');
   const [condition, setCondition] = useState<ItemCondition>('GOOD');
   const [notes, setNotes] = useState('');
-  const [msg, setMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   async function muat() {
@@ -42,8 +34,8 @@ function Inner() {
     setError('');
     try {
       const [borrowed, overdue] = await Promise.all([
-        api<unknown>('/api/loans?status=BORROWED&limit=50').catch(() => []),
-        api<unknown>('/api/loans?status=OVERDUE&limit=50').catch(() => []),
+        api<unknown>('/api/loans?status=BORROWED&limit=50'),
+        api<unknown>('/api/loans?status=OVERDUE&limit=50'),
       ]);
       setLoans([...asArray<Loan>(borrowed), ...asArray<Loan>(overdue)]);
     } catch (e) {
@@ -65,8 +57,7 @@ function Inner() {
 
   async function handleProcess(e: React.FormEvent) {
     e.preventDefault();
-    setMsg('');
-    if (!loanId) return setMsg('Pilih peminjaman yang hendak diproses.');
+    if (!loanId) return toast.error('Pilih peminjaman yang hendak diproses.');
 
     setSubmitting(true);
     const conditionMap: Record<string, string> = {
@@ -86,24 +77,19 @@ function Inner() {
           loan_id: loanId,
           item_condition: conditionMap[condition] || 'BAIK',
           notes: notes.trim() || undefined,
-          // Fallback properties
-          loanId,
-          condition,
         }),
       });
       setLoanId('');
       setNotes('');
       setCondition('GOOD');
-      setMsg(
-        'Pengembalian berhasil diverifikasi! Stok barang telah dipulihkan dan denda dihitung otomatis oleh server.',
-      );
+      const message = 'Pengembalian berhasil dicatat. Stok dan denda diperbarui oleh server.';
+      toast.success(message);
       await muat();
     } catch (err) {
-      setMsg(
-        err instanceof Error
-          ? err.message
-          : 'Gagal memproses pengembalian barang.',
-      );
+      const message = err instanceof Error
+        ? err.message
+        : 'Gagal memproses pengembalian barang.';
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -122,15 +108,6 @@ function Inner() {
         </p>
       </div>
 
-      {msg && (
-        <div
-          role="alert"
-          className="flex items-start gap-2.5 rounded-xl border border-blue-200 bg-blue-50/90 p-3.5 text-xs text-blue-900"
-        >
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
-          <div className="leading-relaxed">{msg}</div>
-        </div>
-      )}
 
       {/* Main Form Card */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-6 sm:p-8 shadow-xs space-y-5">
@@ -312,7 +289,7 @@ function Inner() {
                   }}
                   className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 font-semibold text-blue-700 hover:bg-blue-100 transition"
                 >
-                  Pilih untuk Return
+                  Pilih untuk Dikembalikan
                 </button>
               </div>
             ))}

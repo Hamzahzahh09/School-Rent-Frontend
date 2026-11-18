@@ -4,21 +4,18 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle,
-  CheckCircle2,
-  Clock,
   ArrowRight,
   ShieldCheck,
-  FileText,
 } from 'lucide-react';
 import { api, asArray, formatRupiah, formatTanggal } from '@/lib/api';
 import { RequireRole } from '@/lib/auth';
-import { Empty, ErrorState, Loading } from '@/components/States';
+import { ErrorState, Loading } from '@/components/States';
 import { StatusBadge } from '@/components/StatusBadge';
 import type { Fine } from '@/lib/types';
 
 export default function FinesPage() {
   return (
-    <RequireRole allow={['student', 'staff', 'admin']}>
+    <RequireRole allow={['student']}>
       <FinesInner />
     </RequireRole>
   );

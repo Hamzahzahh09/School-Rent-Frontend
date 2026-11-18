@@ -2,15 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import {
-  Clock,
-  Search,
-  Calendar,
-  FileSpreadsheet,
-  ChevronRight,
-  Package,
-  AlertTriangle,
-} from 'lucide-react';
+import { Search, ChevronRight } from 'lucide-react';
 import { api, asArray, formatRupiah, formatTanggal } from '@/lib/api';
 import { RequireRole } from '@/lib/auth';
 import { Empty, ErrorState, Loading } from '@/components/States';
@@ -19,7 +11,7 @@ import type { Loan } from '@/lib/types';
 
 export default function HistoryPage() {
   return (
-    <RequireRole allow={['student', 'staff', 'admin']}>
+    <RequireRole allow={['student']}>
       <HistoryInner />
     </RequireRole>
   );
@@ -36,7 +28,14 @@ function HistoryInner() {
     (async () => {
       try {
         const res = await api<unknown>('/api/loans');
-        if (active) setLoans(asArray<Loan>(res));
+        if (active) {
+          const historyStatuses = ['RETURNED', 'REJECTED', 'CANCELLED'];
+          setLoans(
+            asArray<Loan>(res).filter((loan) =>
+              historyStatuses.includes(loan.status),
+            ),
+          );
+        }
       } catch (e) {
         if (active)
           setError(

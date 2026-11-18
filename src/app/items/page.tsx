@@ -5,29 +5,22 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   Search,
-  SlidersHorizontal,
   LayoutGrid,
   List,
   Box,
-  CheckCircle2,
-  AlertCircle,
-  ChevronRight,
   PlusCircle,
   X,
 } from 'lucide-react';
 import { api, asArray } from '@/lib/api';
-import { RequireRole } from '@/lib/auth';
-import { Empty, ErrorState, Loading } from '@/components/States';
+import { Empty, ErrorState, SkeletonGrid } from '@/components/States';
 import { StatusBadge } from '@/components/StatusBadge';
-import type { Category, Item, ItemCondition } from '@/lib/types';
+import type { Category, Item } from '@/lib/types';
 
 export default function ItemsPage() {
   return (
-    <RequireRole allow={['student', 'staff', 'admin']}>
-      <Suspense fallback={<Loading text="Menyiapkan katalog peralatan..." />}>
-        <ItemsInner />
-      </Suspense>
-    </RequireRole>
+    <Suspense fallback={<SkeletonGrid />}>
+      <ItemsInner />
+    </Suspense>
   );
 }
 
@@ -51,31 +44,29 @@ function ItemsInner() {
     setLoading(true);
     setError('');
     try {
-      const q = new URLSearchParams();
-      if (keyword.trim()) {
-        q.set('keyword', keyword.trim());
-        q.set('search', keyword.trim());
-      }
-      if (categoryId) {
-        q.set('categoryId', categoryId);
-        q.set('category_id', categoryId);
-      }
-      if (onlyAvailable) {
-        q.set('onlyAvailable', 'true');
-        q.set('only_available', 'true');
-      }
-      q.set('limit', '100');
+      // Ambil satu snapshot katalog. Semua filter diterapkan di browser agar tetap
+      // konsisten walau backend belum mendukung nama parameter filter tertentu.
+      const [itemResult, categoryResult] = await Promise.allSettled([
+        api<unknown>('/api/items?limit=100', { auth: false }),
+        api<unknown>('/api/categories', { auth: false }),
+      ]);
 
-      const res = await api<unknown>(`/api/items?${q.toString()}`);
-      setItems(asArray<Item>(res));
+      if (itemResult.status === 'rejected') throw itemResult.reason;
 
-      if (categories.length === 0) {
-        try {
-          const c = await api<unknown>('/api/categories');
-          setCategories(asArray<Category>(c));
-        } catch {
-          // Kategori opsional
-        }
+      const loadedItems = asArray<Item>(itemResult.value);
+      setItems(loadedItems);
+
+      if (categoryResult.status === 'fulfilled') {
+        setCategories(asArray<Category>(categoryResult.value));
+      } else {
+        const embeddedCategories = loadedItems
+          .map((item) => item.category)
+          .filter((category): category is Category => Boolean(category?.id));
+        setCategories(
+          Array.from(
+            new Map(embeddedCategories.map((category) => [category.id, category])).values(),
+          ),
+        );
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal memuat daftar barang.');
@@ -86,14 +77,36 @@ function ItemsInner() {
 
   useEffect(() => {
     muat();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filter and sort items locally for smooth client-side filtering
   const filteredItems = useMemo(() => {
     let result = [...items];
+    const normalizedKeyword = keyword.trim().toLocaleLowerCase('id-ID');
 
-    // Condition filter (supporting both Indonesian and English)
+    if (normalizedKeyword) {
+      result = result.filter((item) =>
+        [item.name, item.code, item.description, item.category?.name]
+          .filter(Boolean)
+          .some((value) =>
+            String(value).toLocaleLowerCase('id-ID').includes(normalizedKeyword),
+          ),
+      );
+    }
+
+    if (categoryId) {
+      result = result.filter(
+        (item) => (item.categoryId ?? item.category?.id) === categoryId,
+      );
+    }
+
+    if (onlyAvailable) {
+      result = result.filter(
+        (item) => item.status === 'AVAILABLE' && item.availableStock > 0,
+      );
+    }
+
+    // Filter kondisi mendukung enum backend berbahasa Indonesia dan Inggris.
     if (conditionFilter !== 'ALL') {
       result = result.filter((it) => {
         if (it.condition === conditionFilter) return true;
@@ -113,7 +126,7 @@ function ItemsInner() {
     });
 
     return result;
-  }, [items, conditionFilter, sortBy]);
+  }, [items, keyword, categoryId, onlyAvailable, conditionFilter, sortBy]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
@@ -141,7 +154,6 @@ function ItemsInner() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            muat();
           }}
           className="flex flex-col md:flex-row items-stretch md:items-center gap-3"
         >
@@ -261,7 +273,7 @@ function ItemsInner() {
       </div>
 
       {/* STATE HANDLERS */}
-      {loading && <Loading text="Memuat katalog barang..." />}
+      {loading && <SkeletonGrid />}
       {error && !loading && <ErrorState message={error} onRetry={muat} />}
 
       {!loading && !error && filteredItems.length === 0 && (
@@ -275,7 +287,7 @@ function ItemsInner() {
               setCategoryId('');
               setOnlyAvailable(false);
               setConditionFilter('ALL');
-              muat();
+              setSortBy('name');
             },
           }}
         />

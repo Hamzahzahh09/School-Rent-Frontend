@@ -84,7 +84,7 @@ const adminModules = [
 
 export default function AdminHubPage() {
   return (
-    <RequireRole allow={['staff', 'admin']}>
+    <RequireRole allow={['admin']}>
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

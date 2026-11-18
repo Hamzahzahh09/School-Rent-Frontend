@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { toast } from '@/components/ToastProvider';
 import {
   Package,
   Eye,
@@ -14,8 +15,16 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
+/** Hanya izinkan tujuan internal agar parameter ?next= tidak bisa dipakai untuk open redirect. */
+function nextTarget(): string {
+  const requested = new URLSearchParams(window.location.search).get('next');
+  return requested?.startsWith('/') && !requested.startsWith('//') && !requested.startsWith('/\\')
+    ? requested
+    : '/dashboard';
+}
+
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, user, loading: sessionLoading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,23 +32,34 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Pengguna yang sudah masuk tidak perlu melihat form login lagi.
+  useEffect(() => {
+    if (!sessionLoading && user && !loading) router.replace(nextTarget());
+  }, [sessionLoading, user, loading, router]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
 
-    if (!email.trim() || !password) {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
       setError('Email dan kata sandi wajib diisi.');
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(trimmedEmail)) {
+      setError('Masukkan alamat email yang valid.');
       return;
     }
 
     setLoading(true);
     try {
-      await login(email.trim().toLowerCase(), password);
-      router.push('/dashboard');
+      await login(trimmedEmail.toLowerCase(), password);
+      toast.success('Berhasil masuk ke SchoolRent.');
+      router.push(nextTarget());
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Login gagal. Silakan coba lagi.',
-      );
+      const message = err instanceof Error ? err.message : 'Login gagal. Silakan coba lagi.';
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }

@@ -3,21 +3,11 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-  ArrowLeft,
-  Calendar,
-  Package,
-  FileText,
-  AlertCircle,
-  Loader2,
-  CheckCircle2,
-  Info,
-  Clock,
-} from 'lucide-react';
+import { ArrowLeft, AlertCircle, Loader2, CheckCircle2, Info } from 'lucide-react';
 import { api, asArray } from '@/lib/api';
 import { RequireRole } from '@/lib/auth';
-import { ErrorState, Loading } from '@/components/States';
-import { StatusBadge } from '@/components/StatusBadge';
+import { Loading } from '@/components/States';
+import { toast } from '@/components/ToastProvider';
 import type { Item } from '@/lib/types';
 
 export default function CreateLoanPage() {
@@ -33,10 +23,13 @@ export default function CreateLoanPage() {
 function FormInner() {
   const router = useRouter();
   const sp = useSearchParams();
-  const presetItem = sp.get('itemId') ?? '';
+  const rawPreset = sp.get('itemId') ?? '';
+  // Bersihkan jika ada format ID dengan spasi (misal copy-paste URL) menjadi UUID bertanda hubung (-)
+  const presetItem = rawPreset.trim().replace(/\s+/g, '-');
 
-  // Get today's ISO date string (YYYY-MM-DD)
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Gunakan tanggal lokal, bukan UTC, agar nilai tidak bergeser dekat tengah malam.
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   const [items, setItems] = useState<Item[]>([]);
   const [itemId, setItemId] = useState(presetItem);
@@ -51,10 +44,12 @@ function FormInner() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await api<unknown>(
-          '/api/items?only_available=true&onlyAvailable=true&limit=100',
+        const res = await api<unknown>('/api/items?limit=100', { auth: false });
+        setItems(
+          asArray<Item>(res).filter(
+            (item) => item.status === 'AVAILABLE' && item.availableStock > 0,
+          ),
         );
-        setItems(asArray<Item>(res));
       } catch {
         // Items list optional fallback
       }
@@ -77,6 +72,9 @@ function FormInner() {
     if (!loanDate || !dueDate) {
       return setError('Tanggal mulai pinjam dan tanggal jatuh tempo wajib ditentukan.');
     }
+    if (loanDate < todayStr) {
+      return setError('Tanggal mulai pinjam tidak boleh berada di masa lalu.');
+    }
     if (dueDate < loanDate) {
       return setError('Tanggal jatuh tempo tidak boleh mendahului tanggal peminjaman.');
     }
@@ -89,26 +87,27 @@ function FormInner() {
       await api('/api/loans', {
         method: 'POST',
         body: JSON.stringify({
-          // Backend NestJS DTO
+          // Backend NestJS DTO (snake_case)
           item_id: itemId,
           quantity: Number(quantity),
           borrow_date: loanDate,
           due_date: dueDate,
           purpose: purpose.trim(),
           notes: notes.trim() || undefined,
-          // Fallback properties
-          items: [{ itemId, quantity: Number(quantity) }],
+          // Fallback properties untuk kompatibilitas berbagai versi DTO
+          items: [{ item_id: itemId, itemId, quantity: Number(quantity) }],
           loanDate,
           dueDate,
         }),
       });
+      toast.success('Pengajuan peminjaman berhasil dikirim.');
       router.push('/loans');
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Pengajuan peminjaman gagal dikirimkan.',
-      );
+      const message = err instanceof Error
+        ? err.message
+        : 'Pengajuan peminjaman gagal dikirimkan.';
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -216,6 +215,7 @@ function FormInner() {
               <input
                 type="date"
                 required
+                min={todayStr}
                 value={loanDate}
                 onChange={(e) => setLoanDate(e.target.value)}
                 className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"

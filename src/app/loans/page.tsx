@@ -3,17 +3,13 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
-  Package,
   PlusCircle,
   Calendar,
   Clock,
   ChevronRight,
-  Filter,
   Search,
   AlertTriangle,
-  RotateCcw,
   CheckCircle2,
-  XCircle,
 } from 'lucide-react';
 import { api, asArray, formatTanggal, formatRupiah } from '@/lib/api';
 import { RequireRole } from '@/lib/auth';
@@ -29,19 +25,16 @@ function getLoanTitle(l: Loan): string {
 }
 
 const statusTabs: { key: string; label: string }[] = [
-  { key: 'ALL', label: 'Semua Status' },
+  { key: 'ALL', label: 'Semua yang Aktif' },
   { key: 'PENDING', label: 'Menunggu' },
   { key: 'APPROVED', label: 'Disetujui' },
   { key: 'BORROWED', label: 'Dipinjam' },
   { key: 'OVERDUE', label: 'Terlambat' },
-  { key: 'RETURNED', label: 'Selesai' },
-  { key: 'REJECTED', label: 'Ditolak' },
-  { key: 'CANCELLED', label: 'Dibatalkan' },
 ];
 
 export default function LoansPage() {
   return (
-    <RequireRole allow={['student', 'staff', 'admin']}>
+    <RequireRole allow={['student']}>
       <LoansInner />
     </RequireRole>
   );
@@ -59,7 +52,15 @@ function LoansInner() {
     setError('');
     try {
       const res = await api<unknown>('/api/loans');
-      setLoans(asArray<Loan>(res));
+      const activeStatuses: LoanStatus[] = [
+        'PENDING',
+        'APPROVED',
+        'BORROWED',
+        'OVERDUE',
+      ];
+      setLoans(
+        asArray<Loan>(res).filter((loan) => activeStatuses.includes(loan.status)),
+      );
     } catch (e) {
       setError(
         e instanceof Error
@@ -164,7 +165,7 @@ function LoansInner() {
       </div>
 
       {/* States */}
-      {loading && <Loading text="Memuat riwayat peminjaman..." />}
+      {loading && <Loading text="Memuat peminjaman aktif..." />}
       {error && !loading && <ErrorState message={error} onRetry={muat} />}
 
       {!loading && !error && filteredLoans.length === 0 && (
@@ -187,7 +188,6 @@ function LoansInner() {
         <div className="space-y-3">
           {filteredLoans.map((loan) => {
             const title = getLoanTitle(loan);
-            const isPending = loan.status === 'PENDING';
             const isOverdue = loan.status === 'OVERDUE';
 
             return (

@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, getToken, setToken } from './api';
+import { ApiError, api, getToken, setToken } from './api';
 import type { Role, User } from './types';
 
 interface AuthState {
@@ -32,7 +32,7 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-function normalizeUser(raw: unknown): User | null {
+export function normalizeUser(raw: unknown): User | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   const u = (o.user ?? o.data ?? o) as Record<string, unknown>;
@@ -76,6 +76,17 @@ function extractToken(raw: unknown): string | null {
   return typeof inner === 'string' ? inner : null;
 }
 
+async function syncServerSession(token: string | null) {
+  const response = await fetch('/api/session', {
+    method: token ? 'POST' : 'DELETE',
+    headers: token ? { 'Content-Type': 'application/json' } : undefined,
+    body: token ? JSON.stringify({ token }) : undefined,
+  });
+  if (!response.ok) {
+    throw new Error('Sesi aman tidak dapat dibuat. Silakan masuk kembali.');
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -92,12 +103,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokenState(t);
     try {
       const me = await api<unknown>('/api/auth/me');
-      setUser(normalizeUser(me));
-    } catch {
-      // Token tidak valid / backend mati: anggap logout lokal.
+      const normalized = normalizeUser(me);
+      if (!normalized) throw new ApiError(401, 'Profil sesi tidak valid.');
+      setUser(normalized);
+    } catch (error) {
       setUser(null);
       setTokenState(null);
+      if (error instanceof ApiError && [401, 403].includes(error.status)) {
+        setToken(null);
+        await syncServerSession(null).catch(() => undefined);
+      }
+      return;
     }
+    // Sesi lama (sebelum cookie server ada) ikut disinkronkan. Kegagalan di sini
+    // tidak membuat pengguna keluar, karena backend sudah memvalidasi token.
+    await syncServerSession(t).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -112,20 +132,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ email, password }),
       });
       const t = extractToken(res);
-      if (t) setToken(t);
+      if (!t) throw new Error('Login gagal. Server tidak mengirim token sesi.');
+
+      setToken(t);
+      try {
+        await syncServerSession(t);
+      } catch (error) {
+        setToken(null);
+        throw error;
+      }
+      setTokenState(t);
+
       const u = normalizeUser(res);
       if (u) {
         setUser(u);
-        setTokenState(t);
         return;
       }
-      // Token tanpa profil: ambil /me.
-      if (t) {
-        setTokenState(t);
-        await refreshMe();
-        return;
-      }
-      throw new Error('Login gagal. Response backend tidak dikenali.');
+      // Respons login hanya berisi token: ambil profil dari /me.
+      await refreshMe();
     },
     [refreshMe],
   );
@@ -161,6 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Abaikan; tetap bersihkan sesi lokal.
     }
     setToken(null);
+    await syncServerSession(null).catch(() => undefined);
     setUser(null);
     setTokenState(null);
     router.push('/login');
@@ -189,16 +214,23 @@ export function RequireRole({
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const hasRole = Boolean(user && allow.includes(user.role));
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
-    else if (!loading && user && !allow.includes(user.role))
-      router.replace('/dashboard');
-  }, [loading, user, allow, router]);
+    else if (!loading && user && !hasRole) router.replace('/dashboard');
+  }, [loading, user, hasRole, router]);
 
-  if (loading) return <p className="p-6 text-sm">Memuat sesi...</p>;
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-7xl animate-pulse space-y-4 px-4 py-8">
+        <div className="h-8 w-56 rounded bg-slate-200" />
+        <div className="h-40 rounded-2xl bg-slate-200" />
+      </div>
+    );
+  }
   if (!user) return null;
-  if (!allow.includes(user.role))
+  if (!hasRole)
     return <p className="p-6 text-sm">Anda tidak memiliki akses.</p>;
   return <>{children}</>;
 }

@@ -6,27 +6,20 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Box,
-  CheckCircle2,
   AlertTriangle,
   Info,
-  Clock,
-  ShieldCheck,
   PlusCircle,
-  FileText,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { RequireRole } from '@/lib/auth';
 import { Empty, ErrorState, Loading } from '@/components/States';
 import { StatusBadge } from '@/components/StatusBadge';
 import type { Item } from '@/lib/types';
 
 export default function ItemDetailPage() {
   return (
-    <RequireRole allow={['student', 'staff', 'admin']}>
-      <Suspense fallback={<Loading text="Memuat detail peralatan..." />}>
-        <DetailInner />
-      </Suspense>
-    </RequireRole>
+    <Suspense fallback={<Loading text="Memuat detail peralatan..." />}>
+      <DetailInner />
+    </Suspense>
   );
 }
 
@@ -41,7 +34,7 @@ function DetailInner() {
     let active = true;
     (async () => {
       try {
-        const res = await api<Item>(`/api/items/${id}`);
+        const res = await api<Item>(`/api/items/${id}`, { auth: false });
         if (active) setItem(res);
       } catch (e) {
         if (active)

@@ -1,20 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  BarChart3,
-  Calendar,
-  Package,
-  Clock,
-  RotateCcw,
-  AlertTriangle,
-  FileSpreadsheet,
-  Layers,
-  ArrowUpRight,
-} from 'lucide-react';
-import { api, formatRupiah, formatTanggal } from '@/lib/api';
+
+import { api } from '@/lib/api';
 import { RequireRole } from '@/lib/auth';
-import { Empty, ErrorState, Loading } from '@/components/States';
+import { ErrorState, Loading } from '@/components/States';
 
 export default function AdminReportsPage() {
   return (

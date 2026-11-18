@@ -2,21 +2,13 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import {
-  Users,
   Search,
-  Shield,
-  UserCheck,
-  UserX,
-  Mail,
-  GraduationCap,
-  AlertCircle,
-  CheckCircle2,
-  Filter,
 } from 'lucide-react';
 import { api, asArray } from '@/lib/api';
-import { RequireRole } from '@/lib/auth';
+import { RequireRole, normalizeUser, useAuth } from '@/lib/auth';
 import { Empty, ErrorState, Loading } from '@/components/States';
-import { StatusBadge } from '@/components/StatusBadge';
+
+import { toast } from '@/components/ToastProvider';
 import type { Role, User } from '@/lib/types';
 
 export default function AdminUsersPage() {
@@ -28,10 +20,10 @@ export default function AdminUsersPage() {
 }
 
 function UsersInner() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
 
@@ -40,7 +32,11 @@ function UsersInner() {
     setError('');
     try {
       const res = await api<unknown>('/api/users');
-      setUsers(asArray<User>(res));
+      setUsers(
+        asArray<unknown>(res)
+          .map(normalizeUser)
+          .filter((user): user is User => user !== null),
+      );
     } catch (e) {
       setError(
         e instanceof Error ? e.message : 'Gagal memuat basis data pengguna.',
@@ -55,7 +51,10 @@ function UsersInner() {
   }, []);
 
   async function toggleAktif(u: User) {
-    setMsg('');
+    if (u.id === currentUser?.id) {
+      toast.error('Anda tidak dapat menonaktifkan akun sendiri.');
+      return;
+    }
     const newStatus = !(u.isActive ?? true);
     try {
       // Try dedicated status endpoint first
@@ -70,17 +69,20 @@ function UsersInner() {
           body: JSON.stringify({ is_active: newStatus, isActive: newStatus }),
         });
       }
-      setMsg(
-        `Akun ${u.email} berhasil ${newStatus ? 'diaktifkan' : 'dinonaktifkan'}.`,
-      );
+      const message = `Akun ${u.email} berhasil ${newStatus ? 'diaktifkan' : 'dinonaktifkan'}.`;
+      toast.success(message);
       await muat();
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : 'Gagal mengubah status akun.');
+      const message = e instanceof Error ? e.message : 'Gagal mengubah status akun.';
+      toast.error(message);
     }
   }
 
   async function ubahRole(u: User, role: Role) {
-    setMsg('');
+    if (u.id === currentUser?.id) {
+      toast.error('Anda tidak dapat mengubah peran akun sendiri.');
+      return;
+    }
     const roleMap: Record<string, string> = {
       student: 'SISWA',
       staff: 'PETUGAS',
@@ -92,10 +94,10 @@ function UsersInner() {
         method: 'PATCH',
         body: JSON.stringify({ role: backendRole }),
       });
-      setMsg(`Role untuk akun ${u.email} diperbarui menjadi ${role}.`);
+      toast.success(`Peran akun ${u.email} berhasil diperbarui.`);
       await muat();
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : 'Gagal memperbarui role akun.');
+      toast.error(e instanceof Error ? e.message : 'Gagal memperbarui peran akun.');
     }
   }
 
@@ -131,15 +133,6 @@ function UsersInner() {
         </p>
       </div>
 
-      {msg && (
-        <div
-          role="alert"
-          className="flex items-start gap-2.5 rounded-xl border border-blue-200 bg-blue-50/90 p-3.5 text-xs text-blue-900"
-        >
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
-          <div className="leading-relaxed">{msg}</div>
-        </div>
-      )}
 
       {/* Filter and Search Bar */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
@@ -155,7 +148,7 @@ function UsersInner() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 font-medium">Filter Role:</span>
+          <span className="text-xs text-slate-500 font-medium">Filter Peran:</span>
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
@@ -193,7 +186,7 @@ function UsersInner() {
             <thead className="bg-slate-50/90 text-slate-500 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 font-semibold">Pengguna</th>
-                <th className="px-4 py-3 font-semibold">Role Sistem</th>
+                <th className="px-4 py-3 font-semibold">Peran Sistem</th>
                 <th className="px-4 py-3 font-semibold">Kelas &amp; Jurusan</th>
                 <th className="px-4 py-3 font-semibold">Status Akun</th>
                 <th className="px-4 py-3 text-right font-semibold">Aksi</th>
@@ -220,12 +213,14 @@ function UsersInner() {
                     <td className="px-4 py-3.5">
                       <select
                         value={u.role}
+                        disabled={u.id === currentUser?.id}
+                        title={u.id === currentUser?.id ? 'Role akun sendiri tidak dapat diubah' : undefined}
                         onChange={(e) => ubahRole(u, e.target.value as Role)}
                         className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 font-medium focus:border-blue-500 focus:outline-none"
                       >
-                        <option value="student">student (Siswa)</option>
-                        <option value="staff">staff (Petugas)</option>
-                        <option value="admin">admin (Administrator)</option>
+                        <option value="student">Siswa</option>
+                        <option value="staff">Petugas</option>
+                        <option value="admin">Administrator</option>
                       </select>
                     </td>
                     <td className="px-4 py-3.5 text-slate-600">
@@ -250,7 +245,9 @@ function UsersInner() {
                     <td className="px-4 py-3.5 text-right">
                       <button
                         onClick={() => toggleAktif(u)}
-                        className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
+                        disabled={u.id === currentUser?.id}
+                        title={u.id === currentUser?.id ? 'Akun sendiri tidak dapat dinonaktifkan' : undefined}
+                        className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                           isActive
                             ? 'border-rose-200 text-rose-700 hover:bg-rose-50'
                             : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'

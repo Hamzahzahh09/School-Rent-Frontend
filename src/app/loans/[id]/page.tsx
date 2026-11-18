@@ -5,21 +5,16 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
-  Calendar,
-  Clock,
-  CheckCircle2,
   AlertTriangle,
-  RotateCcw,
   XCircle,
   Package,
-  FileText,
   AlertCircle,
-  Loader2,
 } from 'lucide-react';
 import { api, formatRupiah, formatTanggal } from '@/lib/api';
 import { RequireRole } from '@/lib/auth';
 import { Empty, ErrorState, Loading } from '@/components/States';
 import { StatusBadge } from '@/components/StatusBadge';
+import { toast } from '@/components/ToastProvider';
 import type { Loan } from '@/lib/types';
 
 export default function LoanDetailPage() {
@@ -73,13 +68,14 @@ function DetailInner() {
         }),
       });
       setShowCancelModal(false);
+      toast.success('Permohonan peminjaman berhasil dibatalkan.');
       await muat();
     } catch (e) {
-      setActionError(
-        e instanceof Error
-          ? e.message
-          : 'Gagal membatalkan permohonan peminjaman.',
-      );
+      const message = e instanceof Error
+        ? e.message
+        : 'Gagal membatalkan permohonan peminjaman.';
+      setActionError(message);
+      toast.error(message);
     } finally {
       setCancelling(false);
     }
@@ -102,7 +98,6 @@ function DetailInner() {
 
   const isPending = loan.status === 'PENDING';
   const isOverdue = loan.status === 'OVERDUE';
-  const isReturned = loan.status === 'RETURNED';
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">

@@ -2,19 +2,14 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
   Search,
-  DollarSign,
   ShieldCheck,
-  AlertCircle,
-  Loader2,
 } from 'lucide-react';
 import { api, asArray, formatRupiah } from '@/lib/api';
 import { RequireRole } from '@/lib/auth';
 import { Empty, ErrorState, Loading } from '@/components/States';
 import { StatusBadge } from '@/components/StatusBadge';
+import { toast } from '@/components/ToastProvider';
 import type { Fine } from '@/lib/types';
 
 export default function AdminFinesPage() {
@@ -29,7 +24,6 @@ function Inner() {
   const [fines, setFines] = useState<Fine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [waiveModalId, setWaiveModalId] = useState<string | null>(null);
   const [waiveReason, setWaiveReason] = useState('');
@@ -55,14 +49,13 @@ function Inner() {
   }, []);
 
   async function handlePay(id: string) {
-    setMsg('');
     setActionLoading(true);
     try {
       await api(`/api/fines/${id}/pay`, { method: 'PATCH' });
-      setMsg('Denda berhasil ditandai LUNAS (PAID).');
+      toast.success('Denda berhasil ditandai lunas.');
       await muat();
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : 'Gagal memperbarui status bayar.');
+      toast.error(e instanceof Error ? e.message : 'Gagal memperbarui status pembayaran.');
     } finally {
       setActionLoading(false);
     }
@@ -70,7 +63,6 @@ function Inner() {
 
   async function handleWaive() {
     if (!waiveModalId || !waiveReason.trim()) return;
-    setMsg('');
     setActionLoading(true);
     try {
       await api(`/api/fines/${waiveModalId}/waive`, {
@@ -80,12 +72,12 @@ function Inner() {
           waivedReason: waiveReason.trim(),
         }),
       });
-      setMsg('Denda berhasil diputihkan (WAIVED).');
+      toast.success('Denda berhasil diputihkan.');
       setWaiveModalId(null);
       setWaiveReason('');
       await muat();
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : 'Gagal memutihkan denda.');
+      toast.error(e instanceof Error ? e.message : 'Gagal memutihkan denda.');
     } finally {
       setActionLoading(false);
     }
@@ -119,15 +111,6 @@ function Inner() {
         </div>
       </div>
 
-      {msg && (
-        <div
-          role="alert"
-          className="flex items-start gap-2.5 rounded-xl border border-blue-200 bg-blue-50/90 p-3.5 text-xs text-blue-900"
-        >
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
-          <div className="leading-relaxed">{msg}</div>
-        </div>
-      )}
 
       {/* KPI Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -145,7 +128,7 @@ function Inner() {
 
         <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Telah Lunas (PAID)
+            Telah Lunas
           </span>
           <p className="mt-2 text-2xl font-bold text-emerald-600">
             {fines.filter((f) => f.status === 'PAID').length} Tagihan
@@ -155,7 +138,7 @@ function Inner() {
 
         <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Pemutihan (WAIVED)
+            Pemutihan
           </span>
           <p className="mt-2 text-2xl font-bold text-slate-700">
             {fines.filter((f) => f.status === 'WAIVED').length} Tagihan
@@ -237,7 +220,7 @@ function Inner() {
                       }}
                       className="rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition disabled:opacity-60"
                     >
-                      Pemutihan (Waive)
+                      Pemutihan
                     </button>
                   </div>
                 )}

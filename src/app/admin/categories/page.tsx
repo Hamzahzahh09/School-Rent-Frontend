@@ -5,14 +5,12 @@ import {
   Layers,
   Plus,
   Trash2,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
   AlertTriangle,
 } from 'lucide-react';
 import { api, asArray } from '@/lib/api';
 import { RequireRole } from '@/lib/auth';
 import { Empty, ErrorState, Loading } from '@/components/States';
+import { toast } from '@/components/ToastProvider';
 import type { Category } from '@/lib/types';
 
 export default function AdminCategoriesPage() {
@@ -28,7 +26,6 @@ function Inner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [name, setName] = useState('');
-  const [msg, setMsg] = useState('');
   const [adding, setAdding] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -53,7 +50,10 @@ function Inner() {
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    setMsg('');
+    if (!name.trim()) {
+      toast.error('Nama kategori wajib diisi.');
+      return;
+    }
     setAdding(true);
     try {
       await api('/api/categories', {
@@ -61,10 +61,10 @@ function Inner() {
         body: JSON.stringify({ name: name.trim() }),
       });
       setName('');
-      setMsg('Kategori baru berhasil ditambahkan.');
+      toast.success('Kategori baru berhasil ditambahkan.');
       await muat();
     } catch (err) {
-      setMsg(
+      toast.error(
         err instanceof Error ? err.message : 'Gagal menambahkan kategori.',
       );
     } finally {
@@ -73,14 +73,13 @@ function Inner() {
   }
 
   async function handleDelete(id: string) {
-    setMsg('');
     try {
       await api(`/api/categories/${id}`, { method: 'DELETE' });
       setDeleteConfirmId(null);
-      setMsg('Kategori berhasil dihapus.');
+      toast.success('Kategori berhasil dihapus.');
       await muat();
     } catch (e) {
-      setMsg(
+      toast.error(
         e instanceof Error
           ? e.message
           : 'Gagal menghapus kategori. Pastikan tidak sedang digunakan oleh barang.',
@@ -100,15 +99,6 @@ function Inner() {
         </p>
       </div>
 
-      {msg && (
-        <div
-          role="alert"
-          className="flex items-start gap-2.5 rounded-xl border border-blue-200 bg-blue-50/90 p-3.5 text-xs text-blue-900"
-        >
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
-          <div className="leading-relaxed">{msg}</div>
-        </div>
-      )}
 
       {/* Add Category Form */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">

@@ -1,22 +1,18 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import Link from 'next/link';
 import {
   Box,
   Plus,
-  Trash2,
   Search,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
   AlertTriangle,
-  Layers,
+  Pencil,
 } from 'lucide-react';
 import { api, asArray } from '@/lib/api';
 import { RequireRole } from '@/lib/auth';
 import { Empty, ErrorState, Loading } from '@/components/States';
 import { StatusBadge } from '@/components/StatusBadge';
+import { toast } from '@/components/ToastProvider';
 import type { Category, Item } from '@/lib/types';
 
 export default function AdminItemsPage() {
@@ -32,9 +28,9 @@ function Inner() {
   const [cats, setCats] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -44,6 +40,8 @@ function Inner() {
     categoryId: '',
     totalStock: 1,
     description: '',
+    condition: 'BAIK',
+    status: 'AVAILABLE',
   });
 
   async function muat() {
@@ -69,54 +67,101 @@ function Inner() {
     muat();
   }, []);
 
-  async function handleAdd(e: React.FormEvent) {
+  function resetForm() {
+    setForm({
+      code: '',
+      name: '',
+      categoryId: '',
+      totalStock: 1,
+      description: '',
+      condition: 'BAIK',
+      status: 'AVAILABLE',
+    });
+    setEditingId(null);
+    setIsAdding(false);
+  }
+
+  function startEdit(item: Item) {
+    setForm({
+      code: item.code ?? '',
+      name: item.name,
+      categoryId: item.categoryId ?? item.category?.id ?? '',
+      totalStock: item.totalStock,
+      description: item.description ?? '',
+      condition: item.condition,
+      status: item.status,
+    });
+    setEditingId(item.id);
+    setIsAdding(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    setMsg('');
+
+    const name = form.name.trim();
+    const categoryId = form.categoryId;
+    if (!name) return toast.error('Nama peralatan wajib diisi.');
+    if (!categoryId) return toast.error('Kategori peralatan wajib dipilih.');
+    if (!Number.isInteger(form.totalStock) || form.totalStock < 1) {
+      return toast.error('Total stok harus berupa bilangan bulat minimal 1.');
+    }
+
+    const existing = editingId
+      ? items.find((item) => item.id === editingId)
+      : undefined;
+    const borrowedCount = existing
+      ? Math.max(0, existing.totalStock - existing.availableStock)
+      : 0;
+    if (form.totalStock < borrowedCount) {
+      return toast.error(
+        `Total stok tidak boleh kurang dari ${borrowedCount} unit yang sedang dipinjam.`,
+      );
+    }
+
     setSubmitting(true);
-    const itemCode =
-      form.code.trim() ||
-      `BRG-${Date.now().toString().slice(-6)}`;
-    const catId = form.categoryId || (cats[0]?.id ?? '');
+    const itemCode = form.code.trim() || `BRG-${Date.now().toString().slice(-6)}`;
+    const availableStock = existing
+      ? Math.max(0, existing.availableStock + form.totalStock - existing.totalStock)
+      : form.totalStock;
 
     try {
-      await api('/api/items', {
-        method: 'POST',
+      await api(editingId ? `/api/items/${editingId}` : '/api/items', {
+        method: editingId ? 'PATCH' : 'POST',
         body: JSON.stringify({
-          category_id: catId,
+          category_id: categoryId,
           code: itemCode,
-          name: form.name.trim(),
+          name,
           total_stock: Number(form.totalStock),
-          available_stock: Number(form.totalStock),
+          available_stock: availableStock,
           description: form.description.trim() || undefined,
-          condition: 'BAIK',
-          status: 'AVAILABLE',
-          // Fallbacks
-          categoryId: catId,
-          totalStock: Number(form.totalStock),
+          condition: form.condition,
+          status: form.status,
         }),
       });
-      setForm({ code: '', name: '', categoryId: '', totalStock: 1, description: '' });
-      setIsAdding(false);
-      setMsg('Barang inventaris baru berhasil ditambahkan.');
+      const action = editingId ? 'diperbarui' : 'ditambahkan';
+      resetForm();
+      const message = `Barang inventaris berhasil ${action}.`;
+      toast.success(message);
       await muat();
     } catch (err) {
-      setMsg(
-        err instanceof Error ? err.message : 'Gagal menambahkan inventaris.',
-      );
+      const message = err instanceof Error ? err.message : 'Gagal menyimpan inventaris.';
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
   }
 
   async function handleDelete(id: string) {
-    setMsg('');
     try {
       await api(`/api/items/${id}`, { method: 'DELETE' });
       setDeleteConfirmId(null);
-      setMsg('Barang berhasil dihapus / dinonaktifkan.');
+      const message = 'Barang berhasil dihapus atau dinonaktifkan.';
+      toast.success(message);
       await muat();
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : 'Gagal menghapus barang.');
+      const message = e instanceof Error ? e.message : 'Gagal menghapus barang.';
+      toast.error(message);
     }
   }
 
@@ -144,7 +189,10 @@ function Inner() {
           </p>
         </div>
         <button
-          onClick={() => setIsAdding(!isAdding)}
+          onClick={() => {
+            if (isAdding) resetForm();
+            else setIsAdding(true);
+          }}
           className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition"
         >
           <Plus className="h-4 w-4" />
@@ -152,24 +200,15 @@ function Inner() {
         </button>
       </div>
 
-      {msg && (
-        <div
-          role="alert"
-          className="flex items-start gap-2.5 rounded-xl border border-blue-200 bg-blue-50/90 p-3.5 text-xs text-blue-900"
-        >
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
-          <div className="leading-relaxed">{msg}</div>
-        </div>
-      )}
 
       {/* Add Item Card */}
       {isAdding && (
         <div className="rounded-2xl border border-blue-200 bg-white p-6 shadow-sm space-y-4 animate-in fade-in duration-150">
           <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <Box className="h-4 w-4 text-blue-600" />
-            <span>Formulir Tambah Inventaris</span>
+            <span>{editingId ? 'Formulir Edit Inventaris' : 'Formulir Tambah Inventaris'}</span>
           </h2>
-          <form onSubmit={handleAdd} className="space-y-4">
+          <form onSubmit={handleSave} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -203,7 +242,18 @@ function Inner() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Kode Barang
+                </label>
+                <input
+                  value={form.code}
+                  onChange={(e) => setForm({ ...form, code: e.target.value })}
+                  placeholder="Otomatis jika kosong"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
+                />
+              </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Total Stok Unit <span className="text-rose-500">*</span>
@@ -235,17 +285,54 @@ function Inner() {
               </div>
             </div>
 
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Kondisi
+                </label>
+                <select
+                  value={form.condition}
+                  onChange={(e) => setForm({ ...form, condition: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
+                >
+                  <option value="BAIK">Baik</option>
+                  <option value="RUSAK_RINGAN">Rusak Ringan</option>
+                  <option value="RUSAK_BERAT">Rusak Berat</option>
+                  <option value="HILANG">Hilang</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Status Katalog
+                </label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition"
+                >
+                  <option value="AVAILABLE">Tersedia</option>
+                  <option value="BORROWED">Dipinjam</option>
+                  <option value="MAINTENANCE">Perawatan</option>
+                  <option value="INACTIVE">Nonaktif</option>
+                </select>
+              </div>
+            </div>
+
             <div className="flex items-center gap-2 pt-2">
               <button
                 type="submit"
                 disabled={submitting}
                 className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition disabled:opacity-60"
               >
-                {submitting ? 'Menyimpan...' : 'Simpan Inventaris'}
+                {submitting
+                  ? 'Menyimpan...'
+                  : editingId
+                    ? 'Simpan Perubahan'
+                    : 'Simpan Inventaris'}
               </button>
               <button
                 type="button"
-                onClick={() => setIsAdding(false)}
+                onClick={resetForm}
                 className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
               >
                 Batal
@@ -319,13 +406,23 @@ function Inner() {
                     <StatusBadge value={it.status} />
                   </td>
                   <td className="px-4 py-3.5 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setDeleteConfirmId(it.id)}
-                      className="rounded-lg border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition"
-                    >
-                      Hapus
-                    </button>
+                    <div className="inline-flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(it)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirmId(it.id)}
+                        className="rounded-lg border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition"
+                      >
+                        Hapus
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

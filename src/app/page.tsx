@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -11,47 +11,45 @@ import {
   Sparkles,
   ShieldCheck,
   Box,
-  Laptop,
-  Camera,
-  Film,
   Layers,
   ChevronRight,
 } from 'lucide-react';
 import { api, asArray } from '@/lib/api';
 import type { Item } from '@/lib/types';
 import { StatusBadge } from '@/components/StatusBadge';
-import { Loading } from '@/components/States';
+import { ErrorState, SkeletonGrid } from '@/components/States';
 
 export default function HomePage() {
   const [featuredItems, setFeaturedItems] = useState<Item[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
-  const [fetchError, setFetchError] = useState(false);
+  const [fetchError, setFetchError] = useState('');
+
+  const loadItems = useCallback(async () => {
+    setLoadingItems(true);
+    setFetchError('');
+    try {
+      const res = await api<unknown>('/api/items?limit=100', { auth: false });
+      const available = asArray<Item>(res)
+        .filter((item) => item.status === 'AVAILABLE' && item.availableStock > 0)
+        .sort((a, b) => b.availableStock - a.availableStock)
+        .slice(0, 6);
+      setFeaturedItems(available);
+    } catch (error) {
+      setFetchError(
+        error instanceof Error
+          ? error.message
+          : 'Inventaris belum dapat dimuat dari server.',
+      );
+    } finally {
+      setLoadingItems(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const res = await api<unknown>(
-          '/api/items?only_available=true&onlyAvailable=true&limit=6',
-          {
-            auth: false,
-          },
-        );
-        if (active) {
-          const list = asArray<Item>(res);
-          setFeaturedItems(list);
-        }
-      } catch {
-        if (active) setFetchError(true);
-      } finally {
-        if (active) setLoadingItems(false);
-      }
-    })();
+    loadItems();
+  }, [loadItems]);
 
-    return () => {
-      active = false;
-    };
-  }, []);
+  const popularItems = featuredItems.slice(0, 3);
 
   return (
     <div className="flex flex-col">
@@ -74,12 +72,12 @@ export default function HomePage() {
             <div className="lg:col-span-7 space-y-6">
               <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/80 px-3 py-1 text-xs font-semibold text-blue-700">
                 <span className="flex h-1.5 w-1.5 rounded-full bg-blue-600 animate-pulse" />
-                SCHOOL EQUIPMENT BORROWING PLATFORM
+                PLATFORM PEMINJAMAN PERALATAN SEKOLAH
               </div>
 
               <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-5xl xl:text-6xl leading-[1.15]">
-                Everything Your School Needs,{' '}
-                <span className="text-blue-600">Within Reach.</span>
+                Semua Kebutuhan Sekolah,{' '}
+                <span className="text-blue-600">Mudah Dijangkau.</span>
               </h1>
 
               <p className="max-w-2xl text-sm sm:text-base leading-relaxed text-slate-600">
@@ -94,14 +92,14 @@ export default function HomePage() {
                   href="/items"
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-semibold text-white shadow-xs transition hover:bg-blue-700 active:scale-[0.98]"
                 >
-                  Explore Equipment
+                  Jelajahi Peralatan
                   <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   href="#cara-kerja"
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3.5 text-sm font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 active:scale-[0.98]"
                 >
-                  How It Works
+                  Cara Kerja
                 </Link>
               </div>
 
@@ -145,62 +143,58 @@ export default function HomePage() {
                       </div>
                     </div>
                     <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
-                      Live Database
+                      Data Inventaris
                     </span>
                   </div>
 
-                  {/* Representative item cards mock */}
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 transition hover:bg-slate-50">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-slate-200 text-blue-600 shadow-2xs">
-                          <Laptop className="h-5 w-5" />
+                  <div className="space-y-2.5" aria-live="polite">
+                    {loadingItems &&
+                      Array.from({ length: 3 }, (_, index) => (
+                        <div
+                          key={index}
+                          className="flex animate-pulse items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"
+                        >
+                          <div className="h-10 w-10 rounded-lg bg-slate-200" />
+                          <div className="flex-1 space-y-2">
+                            <div className="h-3 w-2/3 rounded bg-slate-200" />
+                            <div className="h-2.5 w-1/2 rounded bg-slate-200" />
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs font-semibold text-slate-900">
-                            Laptop Lab Multimedia
-                          </p>
-                          <p className="text-[10px] text-slate-500">
-                            Intel Core i7 • 16GB RAM • Desain Grafis
-                          </p>
-                        </div>
-                      </div>
-                      <StatusBadge value="AVAILABLE" showDot={true} />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 transition hover:bg-slate-50">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-slate-200 text-indigo-600 shadow-2xs">
-                          <Film className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-slate-900">
-                            Proyektor Epson EB-E01
-                          </p>
-                          <p className="text-[10px] text-slate-500">
-                            3300 Lumens • HDMI • Presentasi Kelas
-                          </p>
-                        </div>
-                      </div>
-                      <StatusBadge value="AVAILABLE" showDot={true} />
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 transition hover:bg-slate-50">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-slate-200 text-amber-600 shadow-2xs">
-                          <Camera className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-slate-900">
-                            Kamera DSLR Canon EOS
-                          </p>
-                          <p className="text-[10px] text-slate-500">
-                            Lensa Kit 18-55mm • Dokumentasi Acara
-                          </p>
-                        </div>
-                      </div>
-                      <StatusBadge value="BORROWED" showDot={true} />
-                    </div>
+                      ))}
+                    {!loadingItems &&
+                      !fetchError &&
+                      popularItems.map((item) => (
+                        <Link
+                          key={item.id}
+                          href={`/items/${item.id}`}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 transition hover:border-blue-300 hover:bg-blue-50/40"
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 text-blue-600 shadow-2xs">
+                              <Box className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-semibold text-slate-900">
+                                {item.name}
+                              </p>
+                              <p className="truncate text-[10px] text-slate-500">
+                                {item.category?.name || 'Inventaris Umum'} • {item.availableStock} unit tersedia
+                              </p>
+                            </div>
+                          </div>
+                          <StatusBadge value={item.status} showDot />
+                        </Link>
+                      ))}
+                    {!loadingItems && fetchError && (
+                      <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                        Data inventaris belum dapat dimuat.
+                      </p>
+                    )}
+                    {!loadingItems && !fetchError && popularItems.length === 0 && (
+                      <p className="rounded-xl border border-dashed border-slate-200 p-3 text-xs text-slate-500">
+                        Belum ada barang yang tersedia hari ini.
+                      </p>
+                    )}
                   </div>
 
                   {/* Micro action */}
@@ -238,7 +232,7 @@ export default function HomePage() {
                 <Search className="h-5 w-5" />
               </div>
               <h3 className="text-sm font-bold text-slate-900">
-                Easy Equipment Discovery
+                Pencarian Peralatan yang Mudah
               </h3>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
                 Pencarian instan dan filter kategori, kondisi fisik, serta status
@@ -251,7 +245,7 @@ export default function HomePage() {
                 <Layers className="h-5 w-5" />
               </div>
               <h3 className="text-sm font-bold text-slate-900">
-                Simple Borrowing Requests
+                Pengajuan Peminjaman yang Praktis
               </h3>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
                 Pengajuan digital dengan menentukan tanggal peminjaman, jatuh
@@ -264,7 +258,7 @@ export default function HomePage() {
                 <Clock className="h-5 w-5" />
               </div>
               <h3 className="text-sm font-bold text-slate-900">
-                Transparent Request Tracking
+                Pelacakan Pengajuan yang Transparan
               </h3>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
                 Pantau langsung status persetujuan dari petugas, konfirmasi
@@ -277,7 +271,7 @@ export default function HomePage() {
                 <RotateCcw className="h-5 w-5" />
               </div>
               <h3 className="text-sm font-bold text-slate-900">
-                Organized Returns &amp; Fines
+                Pengembalian dan Denda yang Tertata
               </h3>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
                 Pencatatan pengembalian yang tertib, evaluasi kondisi barang kembali,
@@ -298,7 +292,7 @@ export default function HomePage() {
                 Katalog Unggulan
               </div>
               <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-                Available for Borrowing
+                Tersedia untuk Dipinjam
               </h2>
               <p className="mt-1 text-xs sm:text-sm text-slate-500">
                 Peralatan sekolah yang saat ini siap digunakan untuk menunjang
@@ -310,13 +304,19 @@ export default function HomePage() {
               href="/items"
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition"
             >
-              <span>Browse All Equipment</span>
+              <span>Lihat Semua Peralatan</span>
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
 
           {loadingItems ? (
-            <Loading text="Memuat peralatan yang tersedia..." />
+            <SkeletonGrid />
+          ) : fetchError ? (
+            <ErrorState
+              title="Inventaris Tidak Dapat Dimuat"
+              message={fetchError}
+              onRetry={loadItems}
+            />
           ) : featuredItems.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {featuredItems.map((item) => (
@@ -367,9 +367,7 @@ export default function HomePage() {
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
               <Box className="h-8 w-8 text-slate-400 mx-auto mb-2" />
               <p className="text-sm font-medium text-slate-700">
-                {fetchError
-                  ? 'Gagal menghubungi server backend (school-rent.vercel.app).'
-                  : 'Belum ada barang yang tercatat sebagai tersedia.'}
+                Belum ada barang yang tercatat sebagai tersedia.
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 Jelajahi halaman katalog lengkap untuk melihat seluruh status barang.
